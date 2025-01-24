@@ -1,0 +1,292 @@
+using System;
+using System.Linq;
+using System.Diagnostics;
+using System.IO;
+using System.Net.Http;
+using System.Threading.Tasks;
+using Newtonsoft.Json;
+
+namespace FishyyExecutor
+{
+    class Program
+    {
+        static async Task Main(string[] args)
+        {
+            try
+            {
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine(@"
+ _____ _     _                                            _
+|  ___(_)___| |__  _   _ _   _    _____  _____  ___ _   _| |_ ___  _ __
+| |_  | / __| '_ \| | | | | | |  / _ \ \/ / _ \/ __| | | | __/ _ \| '__|
+|  _| | \__ \ | | | |_| | |_| | |  __/>  <  __/ (__| |_| | || (_) | |
+|_|   |_|___/_| |_|\__, |\__, |  \___/_/\_\___|\___|\__,_|\__\___/|_|
+                   |___/ |___/
+                Type 'scripthub' to search scripts.
+                Type 'workspace' to see script workspace
+                Type 'discord' for discord link
+                ");
+
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine("Welcome to Fishyy Executor!");
+
+                string workspacePath = Path.Combine(Directory.GetCurrentDirectory(), "Script workspace");
+
+                if (!Directory.Exists(workspacePath))
+                {
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine("Creating workspace folder...");
+                    Directory.CreateDirectory(workspacePath);
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine("Script workspace folder successfully created.");
+                }
+
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine("\nPaste your Lua script below. Type 'exit' to quit, 'discord' for the Discord link, 'scripthub' to search for scripts, or 'workspace' to load a saved script.");
+
+                Process selectedProcess = null;
+
+                selectedProcess = SelectRobloxInstance();
+
+                if (selectedProcess != null)
+                {
+                    ForlornApi.Api.SetAutoInject(true);
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine("Automatically set to inject Forlorn API.");
+                }
+
+                while (true)
+                {
+                    Console.ForegroundColor = ConsoleColor.Gray;
+                    string command = Console.ReadLine();
+
+                    if (command.Equals("discord", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine("Opening Discord invite link: https://discord.gg/eFnHgyqxgx");
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName = "https://discord.gg/eFnHgyqxgx",
+                            UseShellExecute = true
+                        });
+                        continue;
+                    }
+
+                    if (command.Equals("exit", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine("Exiting the executor...");
+                        break;
+                    }
+
+                    if (command.Equals("scripthub", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Console.ForegroundColor = ConsoleColor.Yellow;
+                        Console.WriteLine("Enter the search query for scripts (e.g., 'Prison Life', 'Obby', etc.): ");
+                        string searchQuery = Console.ReadLine();
+
+                        if (string.IsNullOrWhiteSpace(searchQuery))
+                        {
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine("Invalid query. Please enter a valid search term.");
+                            continue;
+                        }
+
+                        await ScriptBloxApi.SearchScriptsAsync(searchQuery);
+                        continue;
+                    }
+
+                    if (command.Equals("workspace", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var scriptFiles = Directory.GetFiles(workspacePath, "*.*")
+                                                    .Where(f => f.EndsWith(".lua") || f.EndsWith(".txt"))
+                                                    .ToArray();
+
+                        if (scriptFiles.Length > 0)
+                        {
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.WriteLine("Scripts found in workspace:");
+
+                            for (int i = 0; i < scriptFiles.Length; i++)
+                            {
+                                string fileName = Path.GetFileName(scriptFiles[i]);
+                                Console.ForegroundColor = ConsoleColor.Cyan;
+                                Console.WriteLine($"{i + 1}. {fileName}");
+                            }
+
+                            Console.ForegroundColor = ConsoleColor.Yellow;
+                            Console.WriteLine("Choose a script number to execute:");
+
+                            int scriptChoice = int.Parse(Console.ReadLine());
+
+                            if (scriptChoice >= 1 && scriptChoice <= scriptFiles.Length)
+                            {
+                                string selectedFile = scriptFiles[scriptChoice - 1];
+                                string scriptContent = File.ReadAllText(selectedFile);
+
+                                
+                                if (ForlornApi.Api.IsRobloxOpen() && ForlornApi.Api.IsInjected())
+                                {
+                                    ForlornApi.Api.ExecuteScript(scriptContent);
+                                    Console.ForegroundColor = ConsoleColor.Green;
+                                    Console.WriteLine($"Executed script: {Path.GetFileName(selectedFile)}");
+                                }
+                                else
+                                {
+                                    Console.ForegroundColor = ConsoleColor.Red;
+                                    Console.WriteLine("Roblox is not open or not injected. Please make sure Roblox is open.");
+                                }
+                            }
+                            else
+                            {
+                                Console.ForegroundColor = ConsoleColor.Red;
+                                Console.WriteLine("Invalid choice, please select a valid script number.");
+                            }
+                        }
+                        else
+                        {
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine("No scripts found in workspace.");
+                        }
+                        continue;
+                    }
+
+                    if (ForlornApi.Api.IsRobloxOpen() && ForlornApi.Api.IsInjected())
+                    {
+                        ForlornApi.Api.ExecuteScript(command);
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine("Script executed successfully!");
+                    }
+                    else
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine("Roblox is not open or not injected. Please make sure Roblox is open.");
+                    }
+
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine("Do you want to change the Roblox instance? (y/n)");
+                    string changeInstance = Console.ReadLine().ToLower();
+
+                    if (changeInstance == "y" || changeInstance == "yes")
+                    {
+                        selectedProcess = SelectRobloxInstance();
+                        
+                        if (selectedProcess != null)
+                        {
+                            ForlornApi.Api.SetAutoInject(true);
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.WriteLine("Automatically set to inject Forlorn API.");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"Error: {ex.Message}");
+            }
+        }
+
+        static Process SelectRobloxInstance()
+        {
+            var robloxProcesses = Process.GetProcessesByName("RobloxPlayerBeta")
+                .Where(p => p.MainWindowTitle.Contains("Roblox") || p.MainWindowTitle.Contains(" - ")) 
+                .ToArray();
+
+            if (robloxProcesses.Length == 0)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("No valid Roblox instances found. Please open Roblox and try again.");
+                return null;
+            }
+
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("Select a Roblox instance to execute your script:");
+
+            for (int i = 0; i < robloxProcesses.Length; i++)
+            {
+                Console.WriteLine($"{i + 1}. Roblox Instance (Process ID: {robloxProcesses[i].Id})");
+            }
+
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.Write("Enter the number of the instance you want to execute the script on: ");
+
+            if (int.TryParse(Console.ReadLine(), out int selection) && selection >= 1 && selection <= robloxProcesses.Length)
+            {
+                return robloxProcesses[selection - 1];
+            }
+            else
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("Invalid selection. Please try again.");
+                return SelectRobloxInstance();
+            }
+        }
+    }
+
+
+    public class ScriptBloxApiResponse
+    {
+        public ScriptBloxResult result { get; set; }
+    }
+
+    public class ScriptBloxResult
+    {
+        public ScriptBloxScript[] scripts { get; set; }
+    }
+
+    public class ScriptBloxScript
+    {
+        public string _id { get; set; }
+        public string title { get; set; }
+        public GameInfo game { get; set; }
+        public string script { get; set; }
+        public bool verified { get; set; }
+        public int views { get; set; }
+        public string scriptType { get; set; }
+    }
+
+    public class GameInfo
+    {
+        public long gameId { get; set; }
+        public string name { get; set; }
+        public string imageUrl { get; set; }
+    }
+
+    public class ScriptBloxApi
+    {
+        private static readonly HttpClient client = new HttpClient();
+
+        public static async Task SearchScriptsAsync(string query, int results = 5, string mode = "free")
+        {
+            string encodedQuery = Uri.EscapeDataString(query);
+
+            string url = $"https://scriptblox.com/api/script/search?q={encodedQuery}&max={results}&mode={mode}";
+
+            try
+            {
+                HttpResponseMessage response = await client.GetAsync(url);
+                response.EnsureSuccessStatusCode();
+
+                string responseBody = await response.Content.ReadAsStringAsync();
+                ScriptBloxApiResponse apiResponse = JsonConvert.DeserializeObject<ScriptBloxApiResponse>(responseBody);
+
+                Console.WriteLine($"Found {apiResponse.result.scripts.Length} script(s) for '{query}':");
+                foreach (var script in apiResponse.result.scripts)
+                {
+                    Console.WriteLine($"Title: {script.title}");
+                    Console.WriteLine($"Game: {script.game.name}");
+                    Console.WriteLine($"Views: {script.views}");
+                    Console.WriteLine($"Verified: {script.verified}");
+                    Console.WriteLine($"Script Type: {script.scriptType}");
+                    Console.WriteLine($"Script URL: {script.script}");
+                    Console.WriteLine("-----------");
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Error fetching scripts: {e.Message}");
+            }
+        }
+    }
+}
